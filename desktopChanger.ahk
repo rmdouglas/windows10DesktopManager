@@ -10,30 +10,32 @@ class JPGIncDesktopChangerClass
 		this.DllWindowMover := new JPGIncDllWindowMover()
 		this.desktopMapper := new DesktopMapperClass(new VirtualDesktopManagerClass())
 		Gui, destkopChanginGUI: new,
+		Gui, destkopChanginGUI: -caption,
+		Gui, destkopChanginGUI: -SysMenu,
 		return this
 	}
 
 	goToNextDesktop(keyCombo := "")
 	{
-		send("^#{right}")
-		return this.doPostGoToDesktop()
+		currentDesktop := this.desktopMapper.getDesktopNumber()
+		return this.goToDesktop(currentDesktop + 1)
 	}
 	
 	goToPreviousDesktop(keyCombo := "")
 	{
-		send("^#{left}")
-		return this.doPostGoToDesktop()
+		currentDesktop := this.desktopMapper.getDesktopNumber()
+		return this.goToDesktop(currentDesktop - 1)
 	}
 	
 	/*
 	 *	swap to the given virtual desktop number
 	 */
-	goToDesktop(newDesktopNumber) 
+	goToDesktop(newDesktopNumber, activateWindow := true) 
 	{
 		debugger("in go to desktop changing to " newDesktopNumber)
 		this._makeDesktopsIfRequired(newDesktopNumber)
 			._goToDesktop(newDesktopNumber)
-		this.doPostGoToDesktop()
+		this.doPostGoToDesktop(activateWindow)
 		return this
 	}
 	
@@ -50,47 +52,37 @@ class JPGIncDesktopChangerClass
 
 	_goToDesktop(newDesktopNumber)
 	{
+		
 		if(this.DllWindowMover.isAvailable())
 		{
 			Gui destkopChanginGUI: show, W0 H0
 			Gui destkopChanginGUI: +HwnddesktopChangingGuiHwnd
 			this.DllWindowMover.moveWindowToDesktop(newDesktopNumber, desktopChangingGuiHwnd)
-			;doing 2 win shows doesn't appear to change desktops
 			WinActivate, ahk_class Shell_TrayWnd
 			Gui destkopChanginGUI: show, W0 H0
 			Gui destkopChanginGUI: hide,
-		} else 
-		{
-			currentDesktop := this.desktopMapper.getDesktopNumber()
-			direction := currentDesktop - newDesktopNumber
-			distance := Abs(direction)
-			debugger("distance to move is " distance "`ndirectin" direction)
-			if(direction < 0)
-			{
-				debugger("Sending right! " distance "times")
-				send("^#{right " distance "}")
-			} else
-			{
-				send("^#{left " distance "}")
-			}
-		}
+			; wait a bit for the desktop to changes
+			sleep 50
+		} 
 		return this
 	}
 	
-	doPostGoToDesktop() 
+	doPostGoToDesktop(activateWindow) 
 	{
-		this._activateTopMostWindow()
+		if(activateWindow)
+		{
+			this._activateTopMostWindow()
+		}
 		callFunction(this.postGoToDesktopFunctionName)
 		return this
 	}
 	
 	_activateTopMostWindow()
 	{
-		;if the desktop has focus before changing virtual desktops then the top most window isn't activated on the new desktop
-		;so check if the desktop has focus after switching to a new one. if it does send an alt + tab to focus the window on that desktop
-		If(this._doesDesktopHaveFocus() && ! isMultiTaskingViewActive())
+		windowID := activeWindowOnCurrentDesktop()
+		if(windowID) 
 		{
-			send !{tab}
+			WinActivate, % "ahk_id " windowID
 		}
 		return this
 	}
@@ -98,6 +90,6 @@ class JPGIncDesktopChangerClass
 	_doesDesktopHaveFocus() 
 	{
 		;CabinetWClass is file explorer
-		return WinActive("ahk_exe explorer.exe") && ! WinActive("ahk_class CabinetWClass")
+		return WinActive("ahk_exe explorer.exe") && ! WinActive("ahk_class CabinetWClass") 
 	}
 }

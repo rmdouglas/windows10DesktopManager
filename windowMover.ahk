@@ -11,6 +11,7 @@
 		this.dllWindowMover := new JPGIncDllWindowMover()
 		this.desktopMapper := new DesktopMapperClass(new VirtualDesktopManagerClass())
 		this.monitorMapper := new MonitorMapperClass()
+		this._desktopChanger := new JPGIncDesktopChangerClass()
 		return this
 	}
 	
@@ -22,29 +23,35 @@
 	
 	moveActiveWindowToDesktop(targetDesktop, follow := false)
 	{
+		if(targetDesktop < 1) 
+		{
+			return this
+		}
 		activeHwnd := WinExist("A")
+		currentDesktop := this.desktopMapper.getDesktopNumber()
+
 		if(this.dllWindowMover.isAvailable()) 
 		{
 			this.dllWindowMover.moveActiveWindowToDesktop(targetDesktop)
+			if(this.followToNewDesktop)
+			{
+				activateWindow := false ; we will reactivate the window ourselves
+				this._desktopChanger.goToDesktop(targetDesktop, activateWindow)
+				this._reactivateWindow(activeHwnd)
+			}			
 		} else 
 		{
-			currentDesktop := this.desktopMapper.getDesktopNumber()
-			if(currentDesktop == targetDesktop) 
+			winhide,  % "ahk_id " activeHwnd
+			this._desktopChanger.goToDesktop(targetDesktop)
+			WinActivate, ahk_class Shell_TrayWnd
+			sleep 50
+			winshow,  % "ahk_id " activeHwnd
+			if(! this.followToNewDesktop) 
 			{
-				return this
+				this._desktopChanger.goToDesktop(currentDesktop)
 			}
-			numberOfTabsNeededToSelectActiveMonitor := this.monitorMapper.getRequiredTabCount(WinActive("A"))
-			numberOfDownsNeededToSelectDesktop := this.getNumberOfDownsNeededToSelectDesktop(targetDesktop, currentDesktop)
-			
-			openMultitaskingViewFrame()
-			send("{tab " numberOfTabsNeededToSelectActiveMonitor "}")
-			send("{Appskey}m{Down " numberOfDownsNeededToSelectDesktop "}{Enter}")
-			closeMultitaskingViewFrame()
 		}
-		
-		this._followWindow(activeHwnd)
-			.doPostMoveWindow()
-		
+
 		return	this
 	}
 	
@@ -64,34 +71,11 @@
 		return this.moveActiveWindowToDesktop(currentDesktop - 1, follow)
 	}	
 	
-	getNumberOfDownsNeededToSelectDesktop(targetDesktop, currentDesktop)
+	_reactivateWindow(activeHwnd)
 	{
-		; This part figures out how many times we need to push down within the context menu to get the desktop we want.	
-		if (targetDesktop > currentDesktop)
-		{
-			targetDesktop -= 2
-		}
-		else
-		{
-			targetdesktop--
-		}
-		return targetDesktop
-	}
-	
-	_followWindow(hwnd)
-	{
-		if(this.followToNewDesktop)
-		{
-			this._deActivateActiveWindow()
-			WinActivate, % "ahk_id " hwnd
-		}
+		WinActivate, ahk_class Shell_TrayWnd
+		sleep 50
+		WinActivate,  % "ahk_id " activeHwnd
 		return this
-	}
-	
-	_deActivateActiveWindow()
-	{
-		Gui, new
-		Gui, Show
-		Gui, destroy
 	}
 }
